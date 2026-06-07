@@ -138,7 +138,15 @@ uci commit
 FILE_PATH="/etc/openwrt_release"
 NEW_DESCRIPTION="DulWiFi TikTok by jontao"
 sed -i "s/DISTRIB_DESCRIPTION='[^']*'/DISTRIB_DESCRIPTION='$NEW_DESCRIPTION'/" "$FILE_PATH"
-
+cat >/etc/openwrt_release <<'EOF'
+DISTRIB_ID='TK-Live'
+DISTRIB_RELEASE='24.10.0'
+DISTRIB_REVISION='DulWiFi'
+DISTRIB_TARGET='mediatek/filogic'
+DISTRIB_ARCH='aarch64_cortex-a53'
+DISTRIB_DESCRIPTION='DulWiFi TikTok by jontao'
+DISTRIB_TAINTS=''
+EOF
 # 若luci-app-advancedplus (进阶设置)已安装 则去除zsh的调用 防止命令行报 /usb/bin/zsh: not found的提示
 if [ -f /usr/lib/lua/luci/controller/advancedplus.lua ]; then
     sed -i '/\/usr\/bin\/zsh/d' /etc/profile
