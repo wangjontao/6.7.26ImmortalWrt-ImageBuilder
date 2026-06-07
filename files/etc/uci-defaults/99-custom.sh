@@ -9,6 +9,54 @@ echo "Starting 99-custom.sh at $(date)" >>$LOGFILE
 # 具体操作方法：网络——防火墙 在wan的入站数据 下拉选项里选择 拒绝 保存并应用即可。
 uci set firewall.@zone[1].input='ACCEPT'
 
+#设置nps自动读取wan mac地址写入并启动
+#!/bin/sh
+
+LOGFILE="/tmp/nps-init.log"
+
+echo "===== NPS INIT START $(date) =====" >> $LOGFILE
+
+# 获取WAN接口
+WAN_DEV="$(uci -q get network.wan.device)"
+
+# 兼容旧版OpenWrt
+[ -z "$WAN_DEV" ] && WAN_DEV="$(uci -q get network.wan.ifname)"
+
+# 如果还为空则自动查找默认路由接口
+[ -z "$WAN_DEV" ] && WAN_DEV="$(ip route | awk '/default/ {print $5; exit}')"
+
+echo "WAN_DEV=$WAN_DEV" >> $LOGFILE
+
+# 获取MAC
+WAN_MAC="$(cat /sys/class/net/$WAN_DEV/address 2>/dev/null)"
+
+echo "WAN_MAC=$WAN_MAC" >> $LOGFILE
+
+# MAC转KEY
+NPS_KEY="$(echo "$WAN_MAC" | tr -d ':' | tr 'a-z' 'A-Z')"
+
+echo "NPS_KEY=$NPS_KEY" >> $LOGFILE
+
+# 写入NPS配置
+uci set nps.@nps[0].enabled='1'
+uci set nps.@nps[0].server_addr='47.83.9.208'
+uci set nps.@nps[0].server_port='8024'
+uci set nps.@nps[0].protocol='tcp'
+uci set nps.@nps[0].compress='1'
+uci set nps.@nps[0].crypt='1'
+uci set nps.@nps[0].vkey="$NPS_KEY"
+
+uci commit nps
+
+# 启动服务
+/etc/init.d/nps enable
+/etc/init.d/nps restart
+
+echo "NPS STARTED" >> $LOGFILE
+echo "===== NPS INIT END =====" >> $LOGFILE
+
+exit 0
+
 # 设置主机名映射，解决安卓原生 TV 无法联网的问题
 uci add dhcp domain
 uci set "dhcp.@domain[-1].name=time.android.com"
