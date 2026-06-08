@@ -224,6 +224,48 @@ else
     echo "未检测到 Docker，跳过防火墙配置。"
 fi
 
+#################################################
+# 修改主机名
+#################################################
+
+uci set system.@system[0].hostname='DulWiFi'
+uci commit system
+
+#################################################
+# 修改WiFi
+#################################################
+
+uci set wireless.default_radio0.disabled='0'
+uci set wireless.default_radio0.ssid='A'
+uci set wireless.default_radio0.encryption='psk2'
+uci set wireless.default_radio0.key='a1111111'
+
+uci set wireless.default_radio1.disabled='0'
+uci set wireless.default_radio1.ssid='A'
+uci set wireless.default_radio1.encryption='psk2'
+uci set wireless.default_radio1.key='a1111111'
+
+uci commit wireless
+
+#################################################
+# 设置 Root 密码
+#################################################
+
+(
+echo "password"
+echo "password"
+) | passwd root
+
+#################################################
+# 生效
+#################################################
+
+wifi reload
+
+echo "Hostname=DulWiFi" >> $LOGFILE
+echo "WiFi SSID=A PASS=a1111111" >> $LOGFILE
+echo "Root password=password" >> $LOGFILE
+
 #设置nps自动读取wan mac地址写入并启动
 #################################################
 # NPS 自动配置
