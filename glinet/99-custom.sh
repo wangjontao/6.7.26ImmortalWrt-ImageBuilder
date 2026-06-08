@@ -107,10 +107,10 @@ fi
 # Root密码
 
 #################################################
-(
-    sleep 30
-    echo 'root:password' | chpasswd
-) &
+
+sed -i 's#^root:[^:]*:#root:$1$WAnoUrSu$/rheUDNlavU8.79MKH6eB.:#' /etc/shadow
+
+sync
 
 
 #################################################
