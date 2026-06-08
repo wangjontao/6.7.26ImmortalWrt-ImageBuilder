@@ -225,33 +225,63 @@ else
 fi
 
 #设置nps自动读取wan mac地址写入并启动
+#################################################
+# NPS 自动配置
+#################################################
 
-LOGFILE="/tmp/nps-init.log"
+NPS_LOG="/tmp/nps-init.log"
 
-echo "===== NPS INIT START $(date) =====" >> $LOGFILE
+echo "" >> "$NPS_LOG"
+echo "===== NPS INIT START $(date) =====" >> "$NPS_LOG"
+
+# NPS服务是否存在
+if [ ! -f /etc/init.d/nps ]; then
+    echo "ERROR: nps service not found" >> "$NPS_LOG"
+    exit 0
+fi
+
+# 等待网络配置完成
+/etc/init.d/network reload >/dev/null 2>&1
+sleep 5
 
 # 获取WAN接口
 WAN_DEV="$(uci -q get network.wan.device)"
 
-# 兼容旧版OpenWrt
+# 兼容旧版
 [ -z "$WAN_DEV" ] && WAN_DEV="$(uci -q get network.wan.ifname)"
 
-# 如果还为空则自动查找默认路由接口
+# 默认路由兜底
 [ -z "$WAN_DEV" ] && WAN_DEV="$(ip route | awk '/default/ {print $5; exit}')"
 
-echo "WAN_DEV=$WAN_DEV" >> $LOGFILE
+echo "WAN_DEV=$WAN_DEV" >> "$NPS_LOG"
+
+if [ -z "$WAN_DEV" ]; then
+    echo "ERROR: WAN device not found" >> "$NPS_LOG"
+    exit 0
+fi
 
 # 获取MAC
 WAN_MAC="$(cat /sys/class/net/$WAN_DEV/address 2>/dev/null)"
 
-echo "WAN_MAC=$WAN_MAC" >> $LOGFILE
+echo "WAN_MAC=$WAN_MAC" >> "$NPS_LOG"
 
-# MAC转KEY
-NPS_KEY="$(echo "$WAN_MAC" | tr -d ':' | tr 'a-z' 'A-Z')"
+if [ -z "$WAN_MAC" ]; then
+    echo "ERROR: WAN MAC not found" >> "$NPS_LOG"
+    exit 0
+fi
 
-echo "NPS_KEY=$NPS_KEY" >> $LOGFILE
+# 转换KEY
+NPS_KEY="$(echo "$WAN_MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
 
-# 写入NPS配置
+echo "NPS_KEY=$NPS_KEY" >> "$NPS_LOG"
+
+# 检查配置段
+if ! uci -q get nps.@nps[0] >/dev/null 2>&1; then
+    echo "ERROR: nps config section not found" >> "$NPS_LOG"
+    exit 0
+fi
+
+# 写入配置
 uci set nps.@nps[0].enabled='1'
 uci set nps.@nps[0].server_addr='47.83.9.208'
 uci set nps.@nps[0].server_port='8024'
@@ -262,11 +292,23 @@ uci set nps.@nps[0].vkey="$NPS_KEY"
 
 uci commit nps
 
-# 启动服务
+echo "NPS config committed" >> "$NPS_LOG"
+
+# 开机启动
 /etc/init.d/nps enable
+
+# 重启服务
 /etc/init.d/nps restart
 
-echo "NPS STARTED" >> $LOGFILE
-echo "===== NPS INIT END =====" >> $LOGFILE
+sleep 3
+
+# 检查状态
+if pgrep npc >/dev/null 2>&1; then
+    echo "SUCCESS: npc started" >> "$NPS_LOG"
+else
+    echo "WARNING: npc process not running" >> "$NPS_LOG"
+fi
+
+echo "===== NPS INIT END =====" >> "$NPS_LOG"
 
 exit 0
