@@ -18,19 +18,6 @@ uci commit system
 
 #################################################
 
-# Root密码
-
-#################################################
-
-PASSWD_HASH='$1$DulWiFi$D7YJY6j1m2mV0l2W5vP4K.'
-
-if grep -q '^root:' /etc/shadow; then
-sed -i "s#^root:[^:]*:#root:${PASSWD_HASH}:#" /etc/shadow
-fi
-
-sync
-
-#################################################
 
  # LAN口设置静态IP
     uci set network.lan.proto='static'
@@ -116,6 +103,15 @@ fi
 ```
 
 fi
+
+# Root密码
+
+#################################################
+(
+    sleep 30
+    echo 'root:password' | chpasswd
+) &
+
 
 #################################################
 
