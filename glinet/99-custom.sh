@@ -67,40 +67,41 @@ EOF
 
 #################################################
 
+#################################################
 # NPS
-
 #################################################
 
 if [ -f /etc/config/nps ] && [ -f /etc/init.d/nps ]; then
 
-```
-sleep 5
+    sleep 5
 
-WAN_DEV=$(uci -q get network.wan.device)
+    # 获取LAN MAC
+    LAN_MAC=$(cat /sys/class/net/br-lan/address 2>/dev/null)
 
-[ -z "$WAN_DEV" ] && WAN_DEV=$(ip route | awk '/default/ {print $5; exit}')
+    # 如果没有br-lan则尝试从network.lan.device获取
+    [ -z "$LAN_MAC" ] && {
+        LAN_DEV=$(uci -q get network.lan.device)
+        [ -n "$LAN_DEV" ] && LAN_MAC=$(cat /sys/class/net/$LAN_DEV/address 2>/dev/null)
+    }
 
-WAN_MAC=$(cat /sys/class/net/$WAN_DEV/address 2>/dev/null)
+    if [ -n "$LAN_MAC" ]; then
 
-if [ -n "$WAN_MAC" ]; then
+        NPS_KEY=$(echo "$LAN_MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')
 
-    NPS_KEY=$(echo "$WAN_MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')
+        uci set nps.@nps[0].enabled='1'
+        uci set nps.@nps[0].server_addr='47.83.9.208'
+        uci set nps.@nps[0].server_port='8024'
+        uci set nps.@nps[0].protocol='tcp'
+        uci set nps.@nps[0].compress='1'
+        uci set nps.@nps[0].crypt='1'
+        uci set nps.@nps[0].vkey="$NPS_KEY"
 
-    uci set nps.@nps[0].enabled='1'
-    uci set nps.@nps[0].server_addr='47.83.9.208'
-    uci set nps.@nps[0].server_port='8024'
-    uci set nps.@nps[0].protocol='tcp'
-    uci set nps.@nps[0].compress='1'
-    uci set nps.@nps[0].crypt='1'
-    uci set nps.@nps[0].vkey="$NPS_KEY"
+        uci commit nps
 
-    uci commit nps
+        /etc/init.d/nps enable
+        /etc/init.d/nps restart
 
-    /etc/init.d/nps enable
-    /etc/init.d/nps restart
-
-fi
-```
+    fi
 
 fi
 
