@@ -73,18 +73,40 @@ if [ -f /etc/config/nps ] && [ -f /etc/init.d/nps ]; then
 
     sleep 5
 
-    # 获取LAN MAC
-    LAN_MAC=$(cat /sys/class/net/br-lan/address 2>/dev/null)
+    echo "Start configure NPS..."
 
-    # 如果没有br-lan则尝试从network.lan.device获取
-    [ -z "$LAN_MAC" ] && {
-        LAN_DEV=$(uci -q get network.lan.device)
-        [ -n "$LAN_DEV" ] && LAN_MAC=$(cat /sys/class/net/$LAN_DEV/address 2>/dev/null)
-    }
+    WAN_DEV=$(uci -q get network.wan.device)
 
-    if [ -n "$LAN_MAC" ]; then
+    if [ -z "$WAN_DEV" ]; then
+        WAN_DEV=$(ip route | awk '/default/ {print $5; exit}')
+    fi
 
-        NPS_KEY=$(echo "$LAN_MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')
+    echo "WAN_DEV=$WAN_DEV"
+
+    WAN_MAC=""
+
+    if [ -n "$WAN_DEV" ] && [ -f "/sys/class/net/$WAN_DEV/address" ]; then
+        WAN_MAC=$(cat /sys/class/net/$WAN_DEV/address)
+    fi
+
+    # PPPoE场景
+    if [ -z "$WAN_MAC" ] || [ "$WAN_MAC" = "00:00:00:00:00:00" ]; then
+
+        LOWER_DEV=$(basename "$(readlink -f /sys/class/net/$WAN_DEV/lower_* 2>/dev/null)" 2>/dev/null)
+
+        if [ -n "$LOWER_DEV" ] && [ -f "/sys/class/net/$LOWER_DEV/address" ]; then
+            WAN_MAC=$(cat /sys/class/net/$LOWER_DEV/address)
+            echo "Use lower device MAC: $LOWER_DEV"
+        fi
+    fi
+
+    if [ -n "$WAN_MAC" ]; then
+
+        echo "WAN MAC=$WAN_MAC"
+
+        NPS_KEY=$(echo "$WAN_MAC" | tr -d ':' | tr '[:lower:]' '[:upper:]')
+
+        echo "NPS KEY=$NPS_KEY"
 
         uci set nps.@nps[0].enabled='1'
         uci set nps.@nps[0].server_addr='47.83.9.208'
@@ -98,6 +120,12 @@ if [ -f /etc/config/nps ] && [ -f /etc/init.d/nps ]; then
 
         /etc/init.d/nps enable
         /etc/init.d/nps restart
+
+        echo "NPS configured successfully"
+
+    else
+
+        echo "ERROR: WAN MAC not found"
 
     fi
 
